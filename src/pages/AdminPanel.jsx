@@ -14,7 +14,7 @@ export default function AdminPanel() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (password === 'اللهم نية خالصة لوجهك') {
+    if (password === 'اللهم لك') {
       setIsAuthenticated(true);
       setError('');
     } else {
