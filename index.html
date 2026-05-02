@@ -7,7 +7,7 @@
     <link rel="manifest" href="/blood-donation-pwa/manifest.json" />
     <meta name="theme-color" content="#e04646" />
     <title>قطرة حياة - التبرع بالدم</title>
-    <script type="module" crossorigin src="/blood-donation-pwa/assets/index-Dq6y4IJt.js"></script>
+    <script type="module" crossorigin src="/blood-donation-pwa/assets/index-BI4azOA7.js"></script>
     <link rel="stylesheet" crossorigin href="/blood-donation-pwa/assets/index-r860ld-s.css">
   </head>
   <body>
@@ -15,7 +15,7 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
+          navigator.serviceWorker.register('./service-worker.js')
             .then((registration) => {
               console.log('SW registered: ', registration);
             })
