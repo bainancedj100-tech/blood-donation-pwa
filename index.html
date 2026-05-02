@@ -4,11 +4,26 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/blood-donation-pwa/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>blood-donation-pwa</title>
+    <link rel="manifest" href="/blood-donation-pwa/manifest.json" />
+    <meta name="theme-color" content="#e04646" />
+    <title>قطرة حياة - التبرع بالدم</title>
     <script type="module" crossorigin src="/blood-donation-pwa/assets/index-Dq6y4IJt.js"></script>
     <link rel="stylesheet" crossorigin href="/blood-donation-pwa/assets/index-r860ld-s.css">
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
