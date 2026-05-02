@@ -1,9 +1,9 @@
 const CACHE_NAME = 'blood-donation-pwa-v1';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/vite.svg'
+  './',
+  './index.html',
+  './manifest.json',
+  './vite.svg'
 ];
 
 // 1. Install Event (Caching the static assets)

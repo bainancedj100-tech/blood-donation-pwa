@@ -6,7 +6,7 @@ import AdminPanel from './pages/AdminPanel';
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/blood-donation-pwa/">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blood-50 font-sans">
         <Routes>
           <Route path="/" element={<LandingPage />} />

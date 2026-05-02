@@ -2,18 +2,18 @@
   "name": "قطرة حياة - التبرع بالدم",
   "short_name": "قطرة حياة",
   "description": "منصة الاستجابة السريعة للتبرع بالدم",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#e04646",
   "icons": [
     {
-      "src": "/vite.svg",
+      "src": "./vite.svg",
       "sizes": "192x192",
       "type": "image/svg+xml"
     },
     {
-      "src": "/vite.svg",
+      "src": "./vite.svg",
       "sizes": "512x512",
       "type": "image/svg+xml"
     }
