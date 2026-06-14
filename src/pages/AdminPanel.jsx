@@ -1,32 +1,97 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowRight, Search, Users, Activity, MessageSquare, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { db, auth } from '../firebase';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 export default function AdminPanel() {
   const [filterType, setFilterType] = useState('All');
-  const [filterCity, setFilterCity] = useState('All');
+  const [searchName, setSearchName] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState('');
+  const [donors, setDonors] = useState([]);
+  const [activeSOS, setActiveSOS] = useState(0);
 
-  // No mock data (real data should come from Firebase)
-  const donors = [];
+  // جلب البيانات من Firestore عند تسجيل الدخول
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
-  const handleLogin = (e) => {
+    // جلب المتبرعين
+    const qDonors = query(collection(db, 'donors'));
+    const unsubDonors = onSnapshot(qDonors, (snapshot) => {
+      const donorsList = [];
+      snapshot.forEach(doc => {
+        donorsList.push({ id: doc.id, ...doc.data() });
+      });
+      setDonors(donorsList);
+    });
+
+    // جلب طلبات الـ SOS النشطة
+    const qSOS = query(collection(db, 'requests'), where('status', '==', 'active'));
+    const unsubSOS = onSnapshot(qSOS, (snapshot) => {
+      setActiveSOS(snapshot.size);
+    });
+
+    return () => {
+      unsubDonors();
+      unsubSOS();
+    };
+  }, [isAuthenticated]);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (password === 'اللهم لك') {
+    if (!email || !password) {
+      setError('يرجى إدخال البريد وكلمة المرور');
+      return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       setIsAuthenticated(true);
       setError('');
-    } else {
-      setError('كلمة المرور غير صحيحة');
+    } catch (err) {
+      console.error(err);
+      // كحل بديل في حال لم يتم إعداد Auth في Firebase بعد (كما طلب المستخدم)
+      if (password === 'اللهم لك' && email === 'admin@qatra.com') {
+        setIsAuthenticated(true);
+        setError('');
+      } else {
+        setError('بيانات الدخول غير صحيحة');
+      }
     }
   };
 
   const handleBulkSMS = () => {
     if (donors.length === 0) return;
-    const phones = donors.filter(d => d.type === filterType || filterType === 'All').map(d => d.phone).join(',');
-    window.location.href = `sms:${phones}?body=نداء عاجل للتبرع بالدم فصيلة ${filterType}`;
+    const filteredDonors = donors.filter(d => 
+      (filterType === 'All' || d.blood_type === filterType) &&
+      (!searchName || d.name?.includes(searchName))
+    );
+    
+    if (filteredDonors.length === 0) {
+      alert("لا يوجد متبرعون يطابقون الفلتر الحالي.");
+      return;
+    }
+
+    const phones = filteredDonors.map(d => d.phone).filter(p => p).join(',');
+    if (!phones) {
+      alert("لا توجد أرقام هواتف مسجلة لهؤلاء المتبرعين.");
+      return;
+    }
+
+    window.location.href = `sms:${phones}?body=نداء عاجل للتبرع بالدم فصيلة ${filterType === 'All' ? 'تناسب المريض' : filterType}`;
   };
+
+  const filteredDonors = donors.filter(donor => {
+    const matchesType = filterType === 'All' || donor.blood_type === filterType;
+    const matchesName = !searchName || donor.name?.includes(searchName);
+    return matchesType && matchesName;
+  });
+
+  const eligibleCount = donors.filter(d => d.status === 'مؤهل').length;
 
   if (!isAuthenticated) {
     return (
@@ -37,6 +102,14 @@ export default function AdminPanel() {
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-6">تسجيل الدخول للإدارة</h2>
           <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="email"
+              placeholder="البريد الإلكتروني"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 text-left dir-ltr"
+              dir="ltr"
+            />
             <input
               type="password"
               placeholder="أدخل كلمة المرور السرية"
@@ -86,7 +159,7 @@ export default function AdminPanel() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500 font-semibold">المؤهلون حالياً</p>
-              <h3 className="text-3xl font-bold text-slate-800 mt-1">0</h3>
+              <h3 className="text-3xl font-bold text-slate-800 mt-1">{eligibleCount}</h3>
             </div>
             <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><Activity size={24} /></div>
           </div>
@@ -96,7 +169,7 @@ export default function AdminPanel() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500 font-semibold">طلبات SOS النشطة</p>
-              <h3 className="text-3xl font-bold text-slate-800 mt-1">0</h3>
+              <h3 className="text-3xl font-bold text-slate-800 mt-1">{activeSOS}</h3>
             </div>
             <div className="p-3 bg-blood-50 text-blood-600 rounded-xl"><Activity size={24} /></div>
           </div>
@@ -110,6 +183,8 @@ export default function AdminPanel() {
             <input 
               type="text" 
               placeholder="ابحث بالاسم..." 
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-12 pl-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -125,7 +200,7 @@ export default function AdminPanel() {
           </select>
           <button 
             onClick={handleBulkSMS}
-            disabled={donors.length === 0}
+            disabled={filteredDonors.length === 0}
             className="flex items-center justify-center py-3 px-6 rounded-xl font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors disabled:opacity-50"
           >
             <MessageSquare size={18} className="ml-2" />
@@ -145,16 +220,16 @@ export default function AdminPanel() {
               </tr>
             </thead>
             <tbody>
-              {donors.length === 0 ? (
+              {filteredDonors.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="py-8 text-center text-slate-500">لا يوجد متبرعين حالياً</td>
                 </tr>
               ) : (
-                donors.map(donor => (
+                filteredDonors.map(donor => (
                   <tr key={donor.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="py-4 pr-4 font-semibold text-slate-800">{donor.name}</td>
+                    <td className="py-4 pr-4 font-semibold text-slate-800">{donor.name || 'متبرع بدون اسم'}</td>
                     <td className="py-4">
-                      <span className="bg-blood-100 text-blood-700 px-2 py-1 rounded-md text-xs font-bold">{donor.type}</span>
+                      <span className="bg-blood-100 text-blood-700 px-2 py-1 rounded-md text-xs font-bold">{donor.blood_type || donor.type}</span>
                     </td>
                     <td className="py-4 text-slate-600">{donor.city}</td>
                     <td className="py-4">
@@ -164,7 +239,7 @@ export default function AdminPanel() {
                         {donor.status}
                       </span>
                     </td>
-                    <td className="py-4 text-slate-600 text-sm" dir="ltr">{donor.phone}</td>
+                    <td className="py-4 text-slate-600 text-sm" dir="ltr">{donor.phone || 'لا يوجد'}</td>
                   </tr>
                 ))
               )}

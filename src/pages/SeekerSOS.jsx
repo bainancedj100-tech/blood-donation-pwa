@@ -1,24 +1,82 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowRight, Phone, AlertTriangle, Building, Droplets } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 
 export default function SeekerSOS() {
   const [bloodType, setBloodType] = useState('O+');
   const [hospital, setHospital] = useState('');
   const [phone, setPhone] = useState('');
   const [isSent, setIsSent] = useState(false);
+  const [requestId, setRequestId] = useState(null);
+  const [responses, setResponses] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Real data should come from Firebase
-  const responses = [];
+  // الاستماع لاستجابات المتبرعين اللحظية بعد نشر الطلب
+  useEffect(() => {
+    if (!requestId) return;
 
-  const handleSOS = (e) => {
+    const q = query(
+      collection(db, 'responses'),
+      where('requestId', '==', requestId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const responders = [];
+      snapshot.forEach((doc) => {
+        responders.push({ id: doc.id, ...doc.data() });
+      });
+      setResponses(responders);
+    });
+
+    return () => unsubscribe();
+  }, [requestId]);
+
+  const handleSOS = async (e) => {
     e.preventDefault();
-    setIsSent(true);
+    if (!hospital || phone.length < 10) {
+      alert("يرجى إدخال اسم المستشفى ورقم هاتف صحيح.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // إرسال طلب الـ SOS لقاعدة البيانات
+      const docRef = await addDoc(collection(db, 'requests'), {
+        blood_type: bloodType,
+        hospital: hospital,
+        phone: phone,
+        status: 'active',
+        createdAt: serverTimestamp()
+      });
+      
+      setRequestId(docRef.id);
+      setIsSent(true);
+      // هنا سيقوم Cloud Function بإرسال FCM لجميع المتبرعين المطابقين
+    } catch (error) {
+      console.error("Error adding document: ", error);
+      alert("حدث خطأ في إرسال النداء. تأكد من إعدادات Firebase.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCall = (phoneNumber) => {
-    // In real app, this reveals the phone number first, then calls
-    window.location.href = `tel:${phoneNumber.replace(/\*/g, '1')}`; // Mock
+  const handleCall = async (phoneNumber, responderId) => {
+    // توثيق عملية الاتصال في قاعدة البيانات لأغراض الأمان
+    try {
+      await addDoc(collection(db, 'calls_log'), {
+        responderId,
+        requestId,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error logging call", error);
+    }
+    
+    // فتح تطبيق الاتصال في الهاتف
+    window.location.href = `tel:${phoneNumber}`;
   };
 
   return (
@@ -93,10 +151,11 @@ export default function SeekerSOS() {
 
           <button 
             type="submit"
-            className="w-full flex items-center justify-center py-4 rounded-xl font-bold text-lg bg-blood-600 hover:bg-blood-700 text-white shadow-lg shadow-blood-600/30 transition-all transform active:scale-95 animate-pulse-slow"
+            disabled={loading}
+            className="w-full flex items-center justify-center py-4 rounded-xl font-bold text-lg bg-blood-600 hover:bg-blood-700 text-white shadow-lg shadow-blood-600/30 transition-all transform active:scale-95 animate-pulse-slow disabled:opacity-50"
           >
             <AlertTriangle size={22} className="ml-2" />
-            أرسل نداء SOS الآن
+            {loading ? 'جاري إرسال النداء...' : 'أرسل نداء SOS الآن'}
           </button>
         </form>
       ) : (
@@ -116,20 +175,26 @@ export default function SeekerSOS() {
             </div>
 
             <div className="space-y-3">
-              {responses.map((resp) => (
-                <div key={resp.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-slate-800">{resp.name}</h4>
-                    <p className="text-xs text-slate-500 mt-1">{resp.distance} • {resp.time}</p>
-                  </div>
-                  <button 
-                    onClick={() => handleCall(resp.phone)}
-                    className="flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors"
-                  >
-                    <Phone size={20} />
-                  </button>
+              {responses.length === 0 ? (
+                <div className="bg-white p-4 rounded-xl text-center text-slate-500 shadow-sm border border-slate-100">
+                  لا توجد استجابات بعد... سيتم تحديث القائمة تلقائياً.
                 </div>
-              ))}
+              ) : (
+                responses.map((resp) => (
+                  <div key={resp.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-800">{resp.name || 'متبرع فاعل خير'}</h4>
+                      <p className="text-xs text-slate-500 mt-1">{resp.distance || 'قريب منك'} • {resp.blood_type}</p>
+                    </div>
+                    <button 
+                      onClick={() => handleCall(resp.phone, resp.id)}
+                      className="flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors"
+                    >
+                      <Phone size={20} />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

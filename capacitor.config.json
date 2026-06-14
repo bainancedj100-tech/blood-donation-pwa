@@ -1,0 +1,6 @@
+{
+  "appId": "com.blood.donation.pwa",
+  "appName": "Blood Donation",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
